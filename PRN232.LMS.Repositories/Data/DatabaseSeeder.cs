@@ -33,8 +33,11 @@ public static class DatabaseSeeder
         var students = Enumerable.Range(1, 50)
             .Select(i => new Student
             {
+                // Same formula as the backfill in the AddStudentCodeAndPhone migration: SE190001, SE190002, ...
+                StudentCode = $"SE{190000 + i}",
                 FullName = $"Student {i:00}",
                 Email = $"student{i:00}@lms.edu.vn",
+                Phone = $"0901{i:000000}",
                 DateOfBirth = new DateTime(2000 + i % 5, i % 12 + 1, i % 27 + 1)
             })
             .ToList();

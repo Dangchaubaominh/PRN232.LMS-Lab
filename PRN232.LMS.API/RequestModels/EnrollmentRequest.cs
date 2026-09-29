@@ -12,6 +12,7 @@ public class EnrollmentRequest
 
     public DateTime EnrollDate { get; set; }
 
-    [Required, RegularExpression("Active|Completed|Dropped")]
+    [Required]
+    [RegularExpression("^(Active|Completed|Dropped)$", ErrorMessage = "Status must be Active, Completed or Dropped.")]
     public string Status { get; set; } = null!;
 }

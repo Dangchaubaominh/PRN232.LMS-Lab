@@ -33,6 +33,24 @@ Resources: `/api/semesters`, `/api/subjects`, `/api/courses`, `/api/students`, `
 
 Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Business model -> Response` on the way out, so entities never reach the client.
 
+### Model binding and validation
+
+| Binding | Example |
+|---|---|
+| Route | `GET /api/students/{id:int}` - `[FromRoute] int id` |
+| Query | `GET /api/students?search=&sort=&page=` - `[FromQuery] ListQueryRequest` |
+| Body | `POST /api/students` - `[FromBody] StudentRequest` |
+| Header | `POST/PUT/DELETE /api/students` - `[FromHeader(Name = "X-Request-Id")]`, written to the audit log line |
+
+Input is validated before it reaches a service; failures return `400` with `"message": "Validation failed."` and field errors in `errors`.
+
+- Data annotations on request models: `[Required]`, `[StringLength]`, `[Range]`, `[EmailAddress]`, `[Phone]` (`StudentRequest`), `[RegularExpression]` (`SubjectRequest.SubjectCode`, `EnrollmentRequest.Status`).
+- Custom rule `[FptuStudentCode]`: campus letter (H, S, D, C, Q) + program letter (E, S, A) + 5-6 digits, e.g. `SE19886`, `CE18793`.
+- FluentValidation: `SemesterRequestValidator` (name required, `EndDate` after `StartDate`), run by `FluentValidationFilter`.
+- Business rules that need the database (unique student code, email and subject code, existing references, date of birth in the past) stay in the services.
+
+Students have a unique `studentCode` and an optional `phone`. Seeded students are `SE190001`...`SE190050`; the `AddStudentCodeAndPhone` migration gives existing rows a code with the same formula.
+
 ### Content negotiation
 
 Every endpoint, including error responses, answers in the format named by the `Accept` header:

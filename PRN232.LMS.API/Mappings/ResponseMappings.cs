@@ -42,8 +42,10 @@ public static class ResponseMappings
     public static StudentResponse ToResponse(this StudentModel model) => new()
     {
         StudentId = model.StudentId,
+        StudentCode = model.StudentCode,
         FullName = model.FullName,
         Email = model.Email,
+        Phone = model.Phone,
         DateOfBirth = model.DateOfBirth,
         Enrollments = model.Enrollments?.Select(e => e.ToResponse()).ToList()
     };

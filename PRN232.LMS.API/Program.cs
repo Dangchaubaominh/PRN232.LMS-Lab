@@ -1,9 +1,12 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.API.Extensions;
+using PRN232.LMS.API.Filters;
 using PRN232.LMS.API.Formatters;
 using PRN232.LMS.API.Middlewares;
 using PRN232.LMS.API.ResponseModels;
+using PRN232.LMS.API.Validators;
 using PRN232.LMS.Repositories.Data;
 using PRN232.LMS.Repositories.Repositories;
 using PRN232.LMS.Services.Services;
@@ -22,9 +25,13 @@ builder.Services
         // Content negotiation: JSON by default, XML on request, 406 for any other Accept type.
         options.ReturnHttpNotAcceptable = true;
         options.OutputFormatters.Add(new ApiXmlOutputFormatter());
+        // Data annotations are checked first by [ApiController]; FluentValidation validators run after them.
+        options.Filters.Add<FluentValidationFilter>();
     })
     .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = context =>
         new BadRequestObjectResult(ApiResponse<object>.Fail("Validation failed.", context.ModelState.ToErrorDictionary())));
+
+builder.Services.AddValidatorsFromAssemblyContaining<SemesterRequestValidator>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.SwaggerDoc("v1", new()

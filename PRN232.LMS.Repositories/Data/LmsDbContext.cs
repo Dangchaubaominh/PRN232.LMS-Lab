@@ -14,6 +14,7 @@ public class LmsDbContext(DbContextOptions<LmsDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Student>().HasIndex(x => x.Email).IsUnique();
+        modelBuilder.Entity<Student>().HasIndex(x => x.StudentCode).IsUnique();
         modelBuilder.Entity<Subject>().HasIndex(x => x.SubjectCode).IsUnique();
         modelBuilder.Entity<Course>().HasOne(x => x.Semester).WithMany(x => x.Courses).HasForeignKey(x => x.SemesterId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Course>().HasOne(x => x.Subject).WithMany(x => x.Courses).HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.Restrict);

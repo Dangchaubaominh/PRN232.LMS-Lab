@@ -19,6 +19,25 @@ Accept: application/xml
 GET {{host}}/api/students
 Accept: text/csv
 
+### Validation: custom FPTU student code rule, [StringLength], [Phone]
+POST {{host}}/api/students
+Content-Type: application/json
+
+{ "studentCode": "AB12345", "fullName": "A", "email": "a@lms.edu.vn", "phone": "call me", "dateOfBirth": "2003-01-01" }
+
+### Validation: FluentValidation (EndDate must be after StartDate)
+POST {{host}}/api/semesters
+Content-Type: application/json
+
+{ "semesterName": "Fall 2026", "startDate": "2026-09-01", "endDate": "2026-08-01" }
+
+### Create a student; X-Request-Id is bound with [FromHeader] and written to the audit log
+POST {{host}}/api/students
+Content-Type: application/json
+X-Request-Id: demo-create-1
+
+{ "studentCode": "SE193293", "fullName": "Dang Chau Bao Minh", "email": "minhdcb@lms.edu.vn", "phone": "0901234567", "dateOfBirth": "2003-01-01" }
+
 ### Request id is echoed in the X-Request-Id response header and in the request log
 GET {{host}}/api/students/99999
 Accept: application/json

@@ -16,6 +16,7 @@ public class StudentService(ILmsRepository repository) : IStudentService
     private static readonly Dictionary<string, Expression<Func<Student, object>>> SortKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         ["studentId"] = x => x.StudentId,
+        ["studentCode"] = x => x.StudentCode,
         ["fullName"] = x => x.FullName,
         ["email"] = x => x.Email,
         ["dateOfBirth"] = x => x.DateOfBirth
@@ -28,8 +29,11 @@ public class StudentService(ILmsRepository repository) : IStudentService
         QueryHelper.EnsureSupported(query, SortKeys, Expandable);
         var includeEnrollments = QueryHelper.SplitList(query.Expand).Contains("enrollments");
 
-        var students = repository.Students
-            .Where(x => query.Search == null || x.FullName.Contains(query.Search) || x.Email.Contains(query.Search));
+        var students = repository.Students.Where(x =>
+            query.Search == null
+            || x.StudentCode.Contains(query.Search)
+            || x.FullName.Contains(query.Search)
+            || x.Email.Contains(query.Search));
         students = QueryHelper.ApplySort(students, query.Sort, SortKeys, x => x.StudentId);
         if (includeEnrollments)
         {
@@ -58,13 +62,16 @@ public class StudentService(ILmsRepository repository) : IStudentService
     public async Task<StudentModel> CreateAsync(StudentModel student)
     {
         EnsureBornInThePast(student);
+        var code = NormalizeCode(student.StudentCode);
         var email = NormalizeEmail(student.Email);
-        await EnsureEmailAvailableAsync(email, excludeStudentId: null);
+        await EnsureUniqueAsync(code, email, excludeStudentId: null);
 
         var entity = new Student
         {
+            StudentCode = code,
             FullName = student.FullName.Trim(),
             Email = email,
+            Phone = NormalizePhone(student.Phone),
             DateOfBirth = student.DateOfBirth
         };
         await repository.AddAsync(entity);
@@ -77,11 +84,14 @@ public class StudentService(ILmsRepository repository) : IStudentService
     {
         var entity = await repository.FindAsync<Student>(id) ?? throw new NotFoundException(NotFoundMessage);
         EnsureBornInThePast(student);
+        var code = NormalizeCode(student.StudentCode);
         var email = NormalizeEmail(student.Email);
-        await EnsureEmailAvailableAsync(email, excludeStudentId: id);
+        await EnsureUniqueAsync(code, email, excludeStudentId: id);
 
+        entity.StudentCode = code;
         entity.FullName = student.FullName.Trim();
         entity.Email = email;
+        entity.Phone = NormalizePhone(student.Phone);
         entity.DateOfBirth = student.DateOfBirth;
         await repository.SaveChangesAsync();
     }
@@ -94,7 +104,11 @@ public class StudentService(ILmsRepository repository) : IStudentService
         await repository.SaveChangesAsync();
     }
 
+    private static string NormalizeCode(string code) => code.Trim().ToUpperInvariant();
+
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+    private static string? NormalizePhone(string? phone) => string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
 
     private static void EnsureBornInThePast(StudentModel student)
     {
@@ -104,11 +118,14 @@ public class StudentService(ILmsRepository repository) : IStudentService
         }
     }
 
-    private async Task EnsureEmailAvailableAsync(string email, int? excludeStudentId)
+    private async Task EnsureUniqueAsync(string code, string email, int? excludeStudentId)
     {
-        var taken = await repository.Students
-            .AnyAsync(x => x.Email == email && (excludeStudentId == null || x.StudentId != excludeStudentId));
-        if (taken)
+        var others = repository.Students.Where(x => excludeStudentId == null || x.StudentId != excludeStudentId);
+        if (await others.AnyAsync(x => x.StudentCode == code))
+        {
+            throw new BusinessRuleException("StudentCode already exists.");
+        }
+        if (await others.AnyAsync(x => x.Email == email))
         {
             throw new BusinessRuleException("Email already exists.");
         }

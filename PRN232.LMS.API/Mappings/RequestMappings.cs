@@ -6,8 +6,9 @@ namespace PRN232.LMS.API.Mappings;
 /// <summary>Request model to business model mappings. Ids are 0: the route or the database supplies them.</summary>
 public static class RequestMappings
 {
+    /// <remarks>SemesterName is non-null once <c>SemesterRequestValidator</c> has passed.</remarks>
     public static SemesterModel ToModel(this SemesterRequest request) =>
-        new(0, request.SemesterName, request.StartDate, request.EndDate);
+        new(0, request.SemesterName!, request.StartDate, request.EndDate);
 
     public static SubjectModel ToModel(this SubjectRequest request) =>
         new(0, request.SubjectCode, request.SubjectName, request.Credit);
@@ -16,7 +17,7 @@ public static class RequestMappings
         new(0, request.CourseName, request.SemesterId, request.SubjectId);
 
     public static StudentModel ToModel(this StudentRequest request) =>
-        new(0, request.FullName, request.Email, request.DateOfBirth);
+        new(0, request.StudentCode, request.FullName, request.Email, request.Phone, request.DateOfBirth);
 
     public static EnrollmentModel ToModel(this EnrollmentRequest request) =>
         new(0, request.StudentId, request.CourseId, request.EnrollDate, request.Status);

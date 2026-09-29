@@ -20,7 +20,7 @@ internal static class EntityMappings
         new(entity.CourseId, entity.CourseName, entity.SemesterId, entity.SubjectId);
 
     public static StudentModel ToModel(this Student entity) =>
-        new(entity.StudentId, entity.FullName, entity.Email, entity.DateOfBirth);
+        new(entity.StudentId, entity.StudentCode, entity.FullName, entity.Email, entity.Phone, entity.DateOfBirth);
 
     public static EnrollmentModel ToModel(this Enrollment entity) =>
         new(entity.EnrollmentId, entity.StudentId, entity.CourseId, entity.EnrollDate, entity.Status);
