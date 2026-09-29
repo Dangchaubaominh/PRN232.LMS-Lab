@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
-using PRN232.LMS.Services.Models;
 
 namespace PRN232.LMS.API.RequestModels;
 
@@ -65,20 +64,4 @@ public class ListQueryRequest
     /// <example>student,course</example>
     [FromQuery(Name = "expand")]
     public string? Expand { get; set; }
-
-    /// <summary>Maps the API request model onto the business query the service layer consumes.</summary>
-    public ListQuery ToServiceQuery() => new()
-    {
-        Search = Search,
-        Status = Status,
-        SemesterId = SemesterId,
-        SubjectId = SubjectId,
-        StudentId = StudentId,
-        CourseId = CourseId,
-        Sort = Sort,
-        Page = Page,
-        Size = Size,
-        Fields = Fields,
-        Expand = Expand
-    };
 }

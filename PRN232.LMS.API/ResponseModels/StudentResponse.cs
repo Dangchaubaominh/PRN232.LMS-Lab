@@ -1,3 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace PRN232.LMS.API.ResponseModels;
 
-public record StudentResponse(int StudentId, string FullName, string Email, DateTime DateOfBirth, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] object? Enrollments = null);
+public class StudentResponse
+{
+    public int StudentId { get; init; }
+    public string FullName { get; init; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
+    public DateTime DateOfBirth { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<EnrollmentResponse>? Enrollments { get; init; }
+}

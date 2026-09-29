@@ -1,17 +1,50 @@
 using Microsoft.AspNetCore.Mvc;
-using PRN232.LMS.API.Models;
+using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.RequestModels;
-using PRN232.LMS.Services.Models;
+using PRN232.LMS.API.ResponseModels;
+using PRN232.LMS.API.Shaping;
 using PRN232.LMS.Services.Services;
+
 namespace PRN232.LMS.API.Controllers;
 
 [ApiController]
 [Route("api/students")]
-public class StudentsController(ILmsService service) : ControllerBase
+public class StudentsController(IStudentService studentService) : ControllerBase
 {
-    [HttpGet] public async Task<IActionResult> GetAll([FromQuery] ListQueryRequest query) => Ok(CollectionResponse<object>.From(await service.GetStudentsAsync(query.ToServiceQuery()), "Students retrieved successfully."));
-    [HttpGet("{id:int}")] public async Task<IActionResult> Get(int id) { var x = await service.GetStudentAsync(id); return x is null ? NotFound(ApiResponse<object>.Fail("Student not found.")) : Ok(ApiResponse<StudentResponse>.Ok(x)); }
-    [HttpPost] public async Task<IActionResult> Create(StudentRequest request) { var (x, error) = await service.CreateStudentAsync(request); return error is not null ? BadRequest(ApiResponse<object>.Fail(error)) : CreatedAtAction(nameof(Get), new { id = x!.StudentId }, ApiResponse<StudentResponse>.Ok(x, "Student created successfully.")); }
-    [HttpPut("{id:int}")] public async Task<IActionResult> Update(int id, StudentRequest request) { var (found, error) = await service.UpdateStudentAsync(id, request); if (!found) return NotFound(ApiResponse<object>.Fail("Student not found.")); return error is null ? Ok(ApiResponse<object>.Ok(new { id }, "Student updated successfully.")) : BadRequest(ApiResponse<object>.Fail(error)); }
-    [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id) => await service.DeleteStudentAsync(id) ? Ok(ApiResponse<object>.Ok(new { id }, "Student deleted successfully.")) : NotFound(ApiResponse<object>.Fail("Student not found."));
+    [HttpGet]
+    public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromQuery] ListQueryRequest query)
+    {
+        var fields = FieldSelection<StudentResponse>.Parse(query.Fields);
+        var students = await studentService.GetAllAsync(query.ToListQuery());
+        return Ok(students.ToCollectionResponse(x => x.ToResponse(), fields, "Students retrieved successfully."));
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<ApiResponse<StudentResponse>>> GetById([FromRoute] int id)
+    {
+        var student = await studentService.GetByIdAsync(id);
+        return Ok(ApiResponse<StudentResponse>.Ok(student.ToResponse()));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<StudentResponse>>> Create([FromBody] StudentRequest request)
+    {
+        var student = await studentService.CreateAsync(request.ToModel());
+        return CreatedAtAction(nameof(GetById), new { id = student.StudentId },
+            ApiResponse<StudentResponse>.Ok(student.ToResponse(), "Student created successfully."));
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<ApiResponse<object>>> Update([FromRoute] int id, [FromBody] StudentRequest request)
+    {
+        await studentService.UpdateAsync(id, request.ToModel());
+        return Ok(ApiResponse<object>.Ok(new { id }, "Student updated successfully."));
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<ActionResult<ApiResponse<object>>> Delete([FromRoute] int id)
+    {
+        await studentService.DeleteAsync(id);
+        return Ok(ApiResponse<object>.Ok(new { id }, "Student deleted successfully."));
+    }
 }
