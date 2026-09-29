@@ -4,4 +4,7 @@ public record StudentModel(int StudentId, string StudentCode, string FullName, s
 {
     /// <summary>Null when the enrollments were not loaded.</summary>
     public IReadOnlyList<EnrollmentModel>? Enrollments { get; init; }
+
+    /// <summary>Null when it was not computed.</summary>
+    public int? EnrollmentCount { get; init; }
 }

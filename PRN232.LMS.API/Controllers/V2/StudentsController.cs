@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.Middlewares;
@@ -6,38 +7,41 @@ using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.API.Shaping;
 using PRN232.LMS.Services.Services;
 
-namespace PRN232.LMS.API.Controllers;
+namespace PRN232.LMS.API.Controllers.V2;
 
+/// <summary>
+/// Students, API v2: same operations and request body as v1, but responses use
+/// <see cref="StudentResponseV2"/> (date-only dateOfBirth, enrollmentCount).
+/// </summary>
 [ApiController]
-[Route("api/students")]
+[ApiVersion("2.0")]
+[Route("api/v{version:apiVersion}/students")]
 public class StudentsController(IStudentService studentService, ILogger<StudentsController> logger) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromQuery] ListQueryRequest query)
+    public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromQuery] StudentQueryRequest query)
     {
-        var fields = FieldSelection<StudentResponse>.Parse(query.Fields);
-        var students = await studentService.GetAllAsync(query.ToListQuery());
-        return Ok(students.ToCollectionResponse(x => x.ToResponse(), fields, "Students retrieved successfully."));
+        var fields = FieldSelection<StudentResponseV2>.Parse(query.Fields);
+        var students = await studentService.GetAllAsync(query.ToListQuery(), includeEnrollmentCount: true);
+        return Ok(students.ToCollectionResponse(x => x.ToResponseV2(), fields, "Students retrieved successfully."));
     }
 
-    [HttpGet("{id:int}")]
-    public async Task<ActionResult<ApiResponse<StudentResponse>>> GetById([FromRoute] int id)
+    [HttpGet("{id:int}", Name = "GetStudentByIdV2")]
+    public async Task<ActionResult<ApiResponse<StudentResponseV2>>> GetById([FromRoute] int id)
     {
         var student = await studentService.GetByIdAsync(id);
-        return Ok(ApiResponse<StudentResponse>.Ok(student.ToResponse()));
+        return Ok(ApiResponse<StudentResponseV2>.Ok(student.ToResponseV2()));
     }
 
-    /// <param name="request">The new student.</param>
-    /// <param name="requestId">Optional correlation id; recorded in the audit log line. Generated when omitted.</param>
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<StudentResponse>>> Create(
+    public async Task<ActionResult<ApiResponse<StudentResponseV2>>> Create(
         [FromBody] StudentRequest request,
         [FromHeader(Name = RequestLoggingMiddleware.RequestIdHeader)] string? requestId)
     {
         var student = await studentService.CreateAsync(request.ToModel());
         logger.LogInformation("Student {StudentId} ({StudentCode}) created [{RequestId}]", student.StudentId, student.StudentCode, requestId);
-        return CreatedAtAction(nameof(GetById), new { id = student.StudentId },
-            ApiResponse<StudentResponse>.Ok(student.ToResponse(), "Student created successfully."));
+        return CreatedAtRoute("GetStudentByIdV2", new { id = student.StudentId },
+            ApiResponse<StudentResponseV2>.Ok(student.ToResponseV2(), "Student created successfully."));
     }
 
     [HttpPut("{id:int}")]

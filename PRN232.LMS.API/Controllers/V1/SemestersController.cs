@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.RequestModels;
@@ -5,10 +6,11 @@ using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.API.Shaping;
 using PRN232.LMS.Services.Services;
 
-namespace PRN232.LMS.API.Controllers;
+namespace PRN232.LMS.API.Controllers.V1;
 
 [ApiController]
-[Route("api/semesters")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/semesters")]
 public class SemestersController(ISemesterService semesterService) : ControllerBase
 {
     [HttpGet]
@@ -19,7 +21,7 @@ public class SemestersController(ISemesterService semesterService) : ControllerB
         return Ok(semesters.ToCollectionResponse(x => x.ToResponse(), fields, "Semesters retrieved successfully."));
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("{id:int}", Name = "GetSemesterById")]
     public async Task<ActionResult<ApiResponse<SemesterResponse>>> GetById([FromRoute] int id)
     {
         var semester = await semesterService.GetByIdAsync(id);
@@ -30,7 +32,7 @@ public class SemestersController(ISemesterService semesterService) : ControllerB
     public async Task<ActionResult<ApiResponse<SemesterResponse>>> Create([FromBody] SemesterRequest request)
     {
         var semester = await semesterService.CreateAsync(request.ToModel());
-        return CreatedAtAction(nameof(GetById), new { id = semester.SemesterId },
+        return CreatedAtRoute("GetSemesterById", new { id = semester.SemesterId },
             ApiResponse<SemesterResponse>.Ok(semester.ToResponse(), "Semester created successfully."));
     }
 

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.RequestModels;
@@ -5,10 +6,11 @@ using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.API.Shaping;
 using PRN232.LMS.Services.Services;
 
-namespace PRN232.LMS.API.Controllers;
+namespace PRN232.LMS.API.Controllers.V1;
 
 [ApiController]
-[Route("api/enrollments")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/enrollments")]
 public class EnrollmentsController(IEnrollmentService enrollmentService) : ControllerBase
 {
     [HttpGet]
@@ -19,7 +21,7 @@ public class EnrollmentsController(IEnrollmentService enrollmentService) : Contr
         return Ok(enrollments.ToCollectionResponse(x => x.ToResponse(), fields, "Enrollments retrieved successfully."));
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("{id:int}", Name = "GetEnrollmentById")]
     public async Task<ActionResult<ApiResponse<EnrollmentResponse>>> GetById([FromRoute] int id)
     {
         var enrollment = await enrollmentService.GetByIdAsync(id);
@@ -30,7 +32,7 @@ public class EnrollmentsController(IEnrollmentService enrollmentService) : Contr
     public async Task<ActionResult<ApiResponse<EnrollmentResponse>>> Create([FromBody] EnrollmentRequest request)
     {
         var enrollment = await enrollmentService.CreateAsync(request.ToModel());
-        return CreatedAtAction(nameof(GetById), new { id = enrollment.EnrollmentId },
+        return CreatedAtRoute("GetEnrollmentById", new { id = enrollment.EnrollmentId },
             ApiResponse<EnrollmentResponse>.Ok(enrollment.ToResponse(), "Enrollment created successfully."));
     }
 

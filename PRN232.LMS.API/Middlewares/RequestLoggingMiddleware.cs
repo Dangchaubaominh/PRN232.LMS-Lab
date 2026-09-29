@@ -20,6 +20,9 @@ public partial class RequestLoggingMiddleware(RequestDelegate next, ILogger<Requ
         // Also written back to the request so [FromHeader(Name = "X-Request-Id")] always binds.
         context.Request.Headers[RequestIdHeader] = requestId;
         context.Response.Headers[RequestIdHeader] = requestId;
+        // Captured now: the URL rewrite further down the pipeline changes Request.Path (/api/x -> /api/v1/x).
+        var path = context.Request.Path;
+        var query = context.Request.QueryString;
 
         var stopwatch = Stopwatch.StartNew();
         var failed = false;
@@ -40,8 +43,8 @@ public partial class RequestLoggingMiddleware(RequestDelegate next, ILogger<Requ
                 LevelFor(statusCode),
                 "{Method} {Path}{Query} responded {StatusCode} in {ElapsedMs:0.0} ms [{RequestId}]",
                 context.Request.Method,
-                context.Request.Path,
-                context.Request.QueryString,
+                path,
+                query,
                 statusCode,
                 stopwatch.Elapsed.TotalMilliseconds,
                 requestId);

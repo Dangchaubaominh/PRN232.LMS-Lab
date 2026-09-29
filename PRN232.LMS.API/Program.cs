@@ -1,11 +1,14 @@
+using Asp.Versioning;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Rewrite;
 using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.API.Extensions;
 using PRN232.LMS.API.Filters;
 using PRN232.LMS.API.Formatters;
 using PRN232.LMS.API.Middlewares;
 using PRN232.LMS.API.ResponseModels;
+using PRN232.LMS.API.Swagger;
 using PRN232.LMS.API.Validators;
 using PRN232.LMS.Repositories.Data;
 using PRN232.LMS.Repositories.Repositories;
@@ -33,13 +36,24 @@ builder.Services
 
 builder.Services.AddValidatorsFromAssemblyContaining<SemesterRequestValidator>();
 
+// URL segment versioning: /api/v1/..., /api/v2/...; responses list the versions in api-supported-versions.
+builder.Services
+    .AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1, 0);
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
+    })
+    .AddMvc()
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'V";
+        options.SubstituteApiVersionInUrl = true;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options => options.SwaggerDoc("v1", new()
-{
-    Title = "PRN232 LMS API",
-    Version = "v1",
-    Description = "RESTful LMS API with search, sorting, paging, field selection and relationship expansion."
-}));
+builder.Services.AddSwaggerGen();
+builder.Services.ConfigureOptions<ConfigureSwaggerOptions>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
@@ -57,8 +71,29 @@ var app = builder.Build();
 // Order matters: logging wraps exception handling so it records the final status code.
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Unmatched URLs (including failed route constraints such as /students/abc) and wrong HTTP methods
+// get the standard envelope instead of an empty body.
+app.UseStatusCodePages(context => context.HttpContext.Response.StatusCode switch
+{
+    StatusCodes.Status404NotFound => context.HttpContext.WriteApiResponseAsync(StatusCodes.Status404NotFound, ApiResponse<object>.Fail("Resource not found.")),
+    StatusCodes.Status405MethodNotAllowed => context.HttpContext.WriteApiResponseAsync(StatusCodes.Status405MethodNotAllowed, ApiResponse<object>.Fail("Method not allowed.")),
+    _ => Task.CompletedTask
+});
+
+// Lab 1 clients call unversioned URLs (/api/students); serve them with v1.
+app.UseRewriter(new RewriteOptions().AddRewrite(@"(?i)^api/(?!v\d+(?:/|$))(.*)$", "api/v1/$1", skipRemainingRules: true));
+// Explicit so that routing sees the rewritten path (the implicit UseRouting runs before all middleware).
+app.UseRouting();
+
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(options =>
+{
+    foreach (var description in app.DescribeApiVersions())
+    {
+        options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
+    }
+});
 
 app.MapControllers();
 app.MapGet("/health", async (LmsDbContext db) => await db.Database.CanConnectAsync()

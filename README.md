@@ -21,7 +21,9 @@ On startup the API applies EF Core migrations and seeds the database once. Seede
 
 > Upgrading from a database created by an older build (before migrations were introduced): run `docker compose down` once before `up`, so the database container is recreated.
 
-Resources: `/api/semesters`, `/api/subjects`, `/api/courses`, `/api/students`, `/api/enrollments`. Collections support `search`, `sort`, `page`, `size`, `fields`, and `expand`.
+Resources (v1): `/api/v1/semesters`, `/api/v1/subjects`, `/api/v1/courses`, `/api/v1/courses/{courseId}/students`, `/api/v1/students`, `/api/v1/enrollments`. Collections support `search`, `sort`, `page`, `size`, `fields`, and `expand`. The Lab 1 URLs without a version (`/api/students`, ...) still work and are served by v1.
+
+Swagger has one document per version: `/swagger/v1/swagger.json` and `/swagger/v2/swagger.json` (pick the version in the top-right selector).
 
 ## Architecture
 
@@ -32,6 +34,15 @@ Resources: `/api/semesters`, `/api/subjects`, `/api/courses`, `/api/students`, `
 | `PRN232.LMS.Repositories` | EF Core `DbContext`, migrations, seeding, data access | Entities |
 
 Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Business model -> Response` on the way out, so entities never reach the client.
+
+### Routing and API versioning
+
+- Attribute routing on every controller, with route constraints (`{id:int}`, `{courseId:int}`); a URL that fails a constraint returns `404` with the standard envelope.
+- Named routes (`GetStudentById`, `GetCourseById`, ...) build the `Location` header of `201 Created` responses via `CreatedAtRoute`.
+- Nested resource: `GET /api/v1/courses/{courseId}/students` lists the students enrolled in a course; `?status=Active` filters by enrollment status. Unknown course: `404`.
+- URL segment versioning with `Asp.Versioning` (`/api/v{version}/...`); every response carries `api-supported-versions`. Controllers live in `Controllers/V1` and `Controllers/V2`.
+- **v2 (students only)**: `/api/v2/students` takes the same requests as v1 but returns `dateOfBirth` as a date (`"2001-02-02"` instead of `"2001-02-02T00:00:00"`, a breaking change) and `enrollmentCount` instead of an `enrollments` list. Other resources exist only in v1, so e.g. `/api/v2/courses` is `404`.
+- Unversioned `/api/...` URLs are rewritten to `/api/v1/...` before routing (`UseRewriter`), so Lab 1 clients keep working.
 
 ### Model binding and validation
 

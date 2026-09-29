@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
+using PRN232.LMS.API.Extensions;
 using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.Services.Exceptions;
 
@@ -9,13 +7,9 @@ namespace PRN232.LMS.API.Middlewares;
 /// <summary>
 /// Turns exceptions thrown while handling a request into the standard error envelope. Unexpected
 /// exceptions are logged in full but reach the client only as a generic 500, whatever the environment.
-/// The envelope goes through MVC content negotiation, so it honours the Accept header (JSON or XML)
-/// like any controller result.
+/// The envelope is content-negotiated (JSON or XML) like any controller result.
 /// </summary>
-public class ExceptionHandlingMiddleware(
-    RequestDelegate next,
-    IActionResultExecutor<ObjectResult> resultExecutor,
-    ILogger<ExceptionHandlingMiddleware> logger)
+public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
 {
     public async Task InvokeAsync(HttpContext context)
     {
@@ -32,8 +26,7 @@ public class ExceptionHandlingMiddleware(
                     context.Request.Method, context.Request.Path, context.TraceIdentifier);
             }
 
-            var actionContext = new ActionContext(context, context.GetRouteData(), new ActionDescriptor());
-            await resultExecutor.ExecuteAsync(actionContext, new ObjectResult(body) { StatusCode = statusCode });
+            await context.WriteApiResponseAsync(statusCode, body);
         }
     }
 

@@ -24,26 +24,25 @@ public class StudentService(ILmsRepository repository) : IStudentService
 
     private static readonly string[] Expandable = ["enrollments"];
 
-    public Task<PagedResult<StudentModel>> GetAllAsync(ListQuery query)
+    public async Task<PagedResult<StudentModel>> GetAllAsync(ListQuery query, bool includeEnrollmentCount = false)
     {
         QueryHelper.EnsureSupported(query, SortKeys, Expandable);
-        var includeEnrollments = QueryHelper.SplitList(query.Expand).Contains("enrollments");
 
-        var students = repository.Students.Where(x =>
-            query.Search == null
-            || x.StudentCode.Contains(query.Search)
-            || x.FullName.Contains(query.Search)
-            || x.Email.Contains(query.Search));
-        students = QueryHelper.ApplySort(students, query.Sort, SortKeys, x => x.StudentId);
-        if (includeEnrollments)
+        var page = await GetPageAsync(repository.Students, query);
+        return includeEnrollmentCount ? await WithEnrollmentCountsAsync(page) : page;
+    }
+
+    public async Task<PagedResult<StudentModel>> GetByCourseAsync(int courseId, ListQuery query)
+    {
+        QueryHelper.EnsureSupported(query, SortKeys, Expandable);
+        if (!await repository.Courses.AnyAsync(x => x.CourseId == courseId))
         {
-            students = students.Include(x => x.Enrollments);
+            throw new NotFoundException("Course not found.");
         }
 
-        return QueryHelper.ToPagedResultAsync(students, query, x => x.ToModel() with
-        {
-            Enrollments = includeEnrollments ? x.Enrollments.Select(e => e.ToModel()).ToList() : null
-        });
+        var enrolled = repository.Students.Where(x => x.Enrollments.Any(e =>
+            e.CourseId == courseId && (query.Status == null || e.Status == query.Status)));
+        return await GetPageAsync(enrolled, query);
     }
 
     public async Task<StudentModel> GetByIdAsync(int id)
@@ -55,7 +54,8 @@ public class StudentService(ILmsRepository repository) : IStudentService
 
         return student.ToModel() with
         {
-            Enrollments = student.Enrollments.Select(e => e.ToModel() with { Course = e.Course.ToModel() }).ToList()
+            Enrollments = student.Enrollments.Select(e => e.ToModel() with { Course = e.Course.ToModel() }).ToList(),
+            EnrollmentCount = student.Enrollments.Count
         };
     }
 
@@ -102,6 +102,44 @@ public class StudentService(ILmsRepository repository) : IStudentService
 
         repository.Remove(entity);
         await repository.SaveChangesAsync();
+    }
+
+    /// <summary>Search, sort, page and expand over <paramref name="students"/>.</summary>
+    private static Task<PagedResult<StudentModel>> GetPageAsync(IQueryable<Student> students, ListQuery query)
+    {
+        var includeEnrollments = QueryHelper.SplitList(query.Expand).Contains("enrollments");
+
+        students = students.Where(x =>
+            query.Search == null
+            || x.StudentCode.Contains(query.Search)
+            || x.FullName.Contains(query.Search)
+            || x.Email.Contains(query.Search));
+        students = QueryHelper.ApplySort(students, query.Sort, SortKeys, x => x.StudentId);
+        if (includeEnrollments)
+        {
+            students = students.Include(x => x.Enrollments);
+        }
+
+        return QueryHelper.ToPagedResultAsync(students, query, x => x.ToModel() with
+        {
+            Enrollments = includeEnrollments ? x.Enrollments.Select(e => e.ToModel()).ToList() : null
+        });
+    }
+
+    /// <summary>Counts the enrollments of the students on the page with one grouped query.</summary>
+    private async Task<PagedResult<StudentModel>> WithEnrollmentCountsAsync(PagedResult<StudentModel> page)
+    {
+        var studentIds = page.Items.Select(x => x.StudentId).ToList();
+        var counts = await repository.Enrollments
+            .Where(e => studentIds.Contains(e.StudentId))
+            .GroupBy(e => e.StudentId)
+            .Select(g => new { StudentId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.StudentId, x => x.Count);
+
+        return page with
+        {
+            Items = page.Items.Select(x => x with { EnrollmentCount = counts.GetValueOrDefault(x.StudentId) }).ToList()
+        };
     }
 
     private static string NormalizeCode(string code) => code.Trim().ToUpperInvariant();

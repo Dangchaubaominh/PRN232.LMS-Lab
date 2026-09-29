@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.RequestModels;
@@ -5,10 +6,11 @@ using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.API.Shaping;
 using PRN232.LMS.Services.Services;
 
-namespace PRN232.LMS.API.Controllers;
+namespace PRN232.LMS.API.Controllers.V1;
 
 [ApiController]
-[Route("api/subjects")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/subjects")]
 public class SubjectsController(ISubjectService subjectService) : ControllerBase
 {
     [HttpGet]
@@ -19,7 +21,7 @@ public class SubjectsController(ISubjectService subjectService) : ControllerBase
         return Ok(subjects.ToCollectionResponse(x => x.ToResponse(), fields, "Subjects retrieved successfully."));
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("{id:int}", Name = "GetSubjectById")]
     public async Task<ActionResult<ApiResponse<SubjectResponse>>> GetById([FromRoute] int id)
     {
         var subject = await subjectService.GetByIdAsync(id);
@@ -30,7 +32,7 @@ public class SubjectsController(ISubjectService subjectService) : ControllerBase
     public async Task<ActionResult<ApiResponse<SubjectResponse>>> Create([FromBody] SubjectRequest request)
     {
         var subject = await subjectService.CreateAsync(request.ToModel());
-        return CreatedAtAction(nameof(GetById), new { id = subject.SubjectId },
+        return CreatedAtRoute("GetSubjectById", new { id = subject.SubjectId },
             ApiResponse<SubjectResponse>.Ok(subject.ToResponse(), "Subject created successfully."));
     }
 

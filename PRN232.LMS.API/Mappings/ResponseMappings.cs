@@ -50,6 +50,18 @@ public static class ResponseMappings
         Enrollments = model.Enrollments?.Select(e => e.ToResponse()).ToList()
     };
 
+    public static StudentResponseV2 ToResponseV2(this StudentModel model) => new()
+    {
+        StudentId = model.StudentId,
+        StudentCode = model.StudentCode,
+        FullName = model.FullName,
+        Email = model.Email,
+        Phone = model.Phone,
+        DateOfBirth = DateOnly.FromDateTime(model.DateOfBirth),
+        // A student that was just created has no enrollments, so no count was computed.
+        EnrollmentCount = model.EnrollmentCount ?? 0
+    };
+
     public static EnrollmentResponse ToResponse(this EnrollmentModel model) => new()
     {
         EnrollmentId = model.EnrollmentId,

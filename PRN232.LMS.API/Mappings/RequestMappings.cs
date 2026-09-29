@@ -22,6 +22,15 @@ public static class RequestMappings
     public static EnrollmentModel ToModel(this EnrollmentRequest request) =>
         new(0, request.StudentId, request.CourseId, request.EnrollDate, request.Status);
 
+    /// <summary>Everything except <see cref="StudentQueryRequest.Fields"/>, which the API layer applies itself.</summary>
+    public static ListQuery ToListQuery(this StudentQueryRequest request) => new()
+    {
+        Search = request.Search,
+        Sort = request.Sort,
+        Page = request.Page,
+        Size = request.Size
+    };
+
     /// <summary>Everything except <see cref="ListQueryRequest.Fields"/>, which the API layer applies itself.</summary>
     public static ListQuery ToListQuery(this ListQueryRequest request) => new()
     {
