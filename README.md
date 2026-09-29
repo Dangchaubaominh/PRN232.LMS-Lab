@@ -31,7 +31,14 @@ Resources: `/api/semesters`, `/api/subjects`, `/api/courses`, `/api/students`, `
 | `PRN232.LMS.Services` | Business rules, query options (search, sort, paging, expand) | Business models |
 | `PRN232.LMS.Repositories` | EF Core `DbContext`, migrations, seeding, data access | Entities |
 
-Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Business model -> Response` on the way out, so entities never reach the client. Services report failures with `NotFoundException` (404), `BusinessRuleException` (400) and `InvalidQueryException` (400); `ExceptionHandlingMiddleware` turns them into the standard `{ success, message, data, errors }` envelope.
+Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Business model -> Response` on the way out, so entities never reach the client.
+
+### Middleware
+
+Registered in this order in `Program.cs`:
+
+1. `RequestLoggingMiddleware` logs method, path, status code and execution time of every request, e.g. `GET /api/students/1 responded 200 in 3.1 ms [demo-123]`. The id comes from the client's `X-Request-Id` header (1-64 characters of `A-Z a-z 0-9 . _ : -`) or is generated, and is returned in the `X-Request-Id` response header.
+2. `ExceptionHandlingMiddleware` maps service exceptions to the `{ success, message, data, errors }` envelope: `NotFoundException` 404, `BusinessRuleException` 400, `InvalidQueryException` 400, `ConflictException` 409 (e.g. deleting a semester that still has courses). Any other exception is logged with its request id and returned as a generic `500 Internal server error`, never with exception details.
 
 Adding a migration after changing an entity:
 

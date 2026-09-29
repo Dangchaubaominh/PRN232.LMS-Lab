@@ -65,7 +65,11 @@ internal static class QueryHelper
         Func<TEntity, TModel> map)
     {
         var totalItems = await source.CountAsync();
-        var rows = await source.Skip((query.Page - 1) * query.Size).Take(query.Size).ToListAsync();
+        // long: (Page - 1) * Size overflows int for very large page numbers.
+        var skip = (long)(query.Page - 1) * query.Size;
+        var rows = skip < totalItems
+            ? await source.Skip((int)skip).Take(query.Size).ToListAsync()
+            : [];
         var totalPages = (int)Math.Ceiling(totalItems / (double)query.Size);
 
         return new PagedResult<TModel>(rows.Select(map).ToList(), query.Page, query.Size, totalItems, totalPages);

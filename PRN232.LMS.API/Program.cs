@@ -9,6 +9,12 @@ using PRN232.LMS.Services.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.SingleLine = true;
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+});
+
 builder.Services
     .AddControllers()
     .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = context =>
@@ -35,9 +41,11 @@ builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 
 var app = builder.Build();
 
+// Order matters: logging wraps exception handling so it records the final status code.
+app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
-app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.MapControllers();
 app.MapGet("/health", async (LmsDbContext db) => await db.Database.CanConnectAsync()

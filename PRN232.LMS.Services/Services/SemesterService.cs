@@ -82,6 +82,10 @@ public class SemesterService(ILmsRepository repository) : ISemesterService
     public async Task DeleteAsync(int id)
     {
         var entity = await repository.FindAsync<Semester>(id) ?? throw new NotFoundException(NotFoundMessage);
+        if (await repository.Courses.AnyAsync(x => x.SemesterId == id))
+        {
+            throw new ConflictException("Semester cannot be deleted while it still has courses.");
+        }
 
         repository.Remove(entity);
         await repository.SaveChangesAsync();

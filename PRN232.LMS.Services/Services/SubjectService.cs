@@ -74,6 +74,10 @@ public class SubjectService(ILmsRepository repository) : ISubjectService
     public async Task DeleteAsync(int id)
     {
         var entity = await repository.FindAsync<Subject>(id) ?? throw new NotFoundException(NotFoundMessage);
+        if (await repository.Courses.AnyAsync(x => x.SubjectId == id))
+        {
+            throw new ConflictException("Subject cannot be deleted while it still has courses.");
+        }
 
         repository.Remove(entity);
         await repository.SaveChangesAsync();
