@@ -33,6 +33,18 @@ Resources: `/api/semesters`, `/api/subjects`, `/api/courses`, `/api/students`, `
 
 Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Business model -> Response` on the way out, so entities never reach the client.
 
+### Content negotiation
+
+Every endpoint, including error responses, answers in the format named by the `Accept` header:
+
+| Accept | Result |
+|---|---|
+| none, `*/*`, `application/json` | JSON (default) |
+| `application/xml`, `text/xml` | XML |
+| anything else, e.g. `text/csv` | `406 Not Acceptable` |
+
+XML is produced by `ApiXmlOutputFormatter`, which converts the JSON representation, so both formats carry exactly the same data (including `fields` and `expand` results). The root element is `<response>`, arrays become repeated `<item>` elements and null values are marked `xsi:nil="true"`.
+
 ### Middleware
 
 Registered in this order in `Program.cs`:

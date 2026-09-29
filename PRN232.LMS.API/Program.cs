@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.API.Extensions;
+using PRN232.LMS.API.Formatters;
 using PRN232.LMS.API.Middlewares;
 using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.Repositories.Data;
@@ -16,7 +17,12 @@ builder.Logging.AddSimpleConsole(options =>
 });
 
 builder.Services
-    .AddControllers()
+    .AddControllers(options =>
+    {
+        // Content negotiation: JSON by default, XML on request, 406 for any other Accept type.
+        options.ReturnHttpNotAcceptable = true;
+        options.OutputFormatters.Add(new ApiXmlOutputFormatter());
+    })
     .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = context =>
         new BadRequestObjectResult(ApiResponse<object>.Fail("Validation failed.", context.ModelState.ToErrorDictionary())));
 

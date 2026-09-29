@@ -10,3 +10,16 @@ Accept: application/json
 ###
 GET {{host}}/api/students/1
 Accept: application/json
+
+### Content negotiation: XML
+GET {{host}}/api/students?size=2&fields=studentId,fullName
+Accept: application/xml
+
+### Content negotiation: unsupported format -> 406
+GET {{host}}/api/students
+Accept: text/csv
+
+### Request id is echoed in the X-Request-Id response header and in the request log
+GET {{host}}/api/students/99999
+Accept: application/json
+X-Request-Id: demo-123
