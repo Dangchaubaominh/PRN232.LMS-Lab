@@ -1,0 +1,29 @@
+{
+  "studentCode": "SE193293",
+  "fullName": "Dang Chau Bao Minh",
+  "className": "SE1932",
+  "projectName": "LMS",
+  "apiBasePath": "/api",
+  "healthPath": "/health",
+  "swaggerJsonPath": "/swagger/v1/swagger.json",
+  "database": "sqlserver",
+  "resources": {
+    "semesters": "/api/semesters",
+    "courses": "/api/courses",
+    "subjects": "/api/subjects",
+    "students": "/api/students",
+    "enrollments": "/api/enrollments"
+  },
+  "implemented": {
+    "search": true,
+    "sort": true,
+    "paging": true,
+    "selection": true,
+    "expansion": true,
+    "create": true,
+    "update": true,
+    "delete": true
+  },
+  "knownIds": { "students": 1, "courses": 1, "enrollments": 1, "subjects": 1, "semesters": 1 },
+  "notes": "Collections support search, sort, page, size, fields and expand. Migrations and seeding run automatically on container startup and are idempotent."
+}
