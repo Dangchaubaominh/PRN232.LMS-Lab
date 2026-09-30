@@ -10,9 +10,15 @@ public class LmsDbContext(DbContextOptions<LmsDbContext> options) : DbContext(op
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<Student> Students => Set<Student>();
     public DbSet<Enrollment> Enrollments => Set<Enrollment>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>().HasIndex(x => x.Username).IsUnique();
+        modelBuilder.Entity<RefreshToken>().HasIndex(x => x.TokenHash).IsUnique();
+        modelBuilder.Entity<RefreshToken>().HasOne(x => x.User).WithMany(x => x.RefreshTokens).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<Student>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<Student>().HasIndex(x => x.StudentCode).IsUnique();
         modelBuilder.Entity<Subject>().HasIndex(x => x.SubjectCode).IsUnique();

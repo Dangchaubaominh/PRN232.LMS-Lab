@@ -73,6 +73,13 @@ public static class ResponseMappings
         Course = model.Course?.ToResponse()
     };
 
+    public static AuthResponse ToResponse(this AuthResult result) => new()
+    {
+        AccessToken = result.AccessToken,
+        RefreshToken = result.RefreshToken,
+        ExpiresIn = result.ExpiresIn
+    };
+
     public static CollectionResponse<object> ToCollectionResponse<TModel, TResponse>(
         this PagedResult<TModel> page,
         Func<TModel, TResponse> toResponse,

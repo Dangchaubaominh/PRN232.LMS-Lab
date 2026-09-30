@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.RequestModels;
@@ -10,6 +11,7 @@ namespace PRN232.LMS.API.Controllers.V1;
 
 /// <summary>Nested resource: the students enrolled in a course.</summary>
 [ApiController]
+[Authorize]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/courses/{courseId:int}/students")]
 public class CourseStudentsController(IStudentService studentService) : ControllerBase

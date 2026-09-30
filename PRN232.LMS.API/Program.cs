@@ -3,15 +3,18 @@ using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Rewrite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using PRN232.LMS.API.Extensions;
 using PRN232.LMS.API.Filters;
 using PRN232.LMS.API.Formatters;
 using PRN232.LMS.API.Middlewares;
 using PRN232.LMS.API.ResponseModels;
+using PRN232.LMS.API.Security;
 using PRN232.LMS.API.Swagger;
 using PRN232.LMS.API.Validators;
 using PRN232.LMS.Repositories.Data;
 using PRN232.LMS.Repositories.Repositories;
+using PRN232.LMS.Services.Security;
 using PRN232.LMS.Services.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,7 +69,15 @@ builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 
+builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
 var app = builder.Build();
+
+// Fail fast, before touching the database, when the JWT settings (e.g. Jwt__Secret) are missing or too weak.
+_ = app.Services.GetRequiredService<IOptions<JwtOptions>>().Value;
 
 // Order matters: logging wraps exception handling so it records the final status code.
 app.UseMiddleware<RequestLoggingMiddleware>();
@@ -81,8 +92,8 @@ app.UseStatusCodePages(context => context.HttpContext.Response.StatusCode switch
     _ => Task.CompletedTask
 });
 
-// Lab 1 clients call unversioned URLs (/api/students); serve them with v1.
-app.UseRewriter(new RewriteOptions().AddRewrite(@"(?i)^api/(?!v\d+(?:/|$))(.*)$", "api/v1/$1", skipRemainingRules: true));
+// Lab 1 clients call unversioned URLs (/api/students); serve them with v1. /api/auth is not versioned.
+app.UseRewriter(new RewriteOptions().AddRewrite(@"(?i)^api/(?!v\d+(?:/|$)|auth(?:/|$))(.*)$", "api/v1/$1", skipRemainingRules: true));
 // Explicit so that routing sees the rewritten path (the implicit UseRouting runs before all middleware).
 app.UseRouting();
 
@@ -93,7 +104,12 @@ app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
     }
+    // Keep the token entered with the Authorize button across page reloads.
+    options.EnablePersistAuthorization();
 });
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapGet("/health", async (LmsDbContext db) => await db.Database.CanConnectAsync()
@@ -102,7 +118,8 @@ app.MapGet("/health", async (LmsDbContext db) => await db.Database.CanConnectAsy
 
 using (var scope = app.Services.CreateScope())
 {
-    await DatabaseSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<LmsDbContext>());
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    await DatabaseSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<LmsDbContext>(), passwordHasher.Hash);
 }
 
 app.Run();

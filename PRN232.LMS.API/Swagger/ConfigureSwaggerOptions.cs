@@ -10,6 +10,15 @@ public class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider) : 
 {
     public void Configure(SwaggerGenOptions options)
     {
+        options.AddSecurityDefinition(AuthorizeOperationFilter.SchemeName, new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Call POST /api/auth/login (e.g. admin / 123456) and paste data.accessToken here, without the 'Bearer ' prefix."
+        });
+        options.OperationFilter<AuthorizeOperationFilter>();
+
         foreach (var description in provider.ApiVersionDescriptions)
         {
             options.SwaggerDoc(description.GroupName, new OpenApiInfo

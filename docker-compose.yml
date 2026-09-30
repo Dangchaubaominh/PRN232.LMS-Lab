@@ -22,6 +22,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Server=db,1433;Database=LMS;User Id=sa;Password=Your_password123;TrustServerCertificate=True"
+      # JWT signing key (>= 32 bytes). Set JWT_SECRET in the shell or in a .env file to override the local-only default.
+      Jwt__Secret: "${JWT_SECRET:-local-docker-only-jwt-secret-change-me-0123456789}"
     depends_on:
       db:
         condition: service_healthy

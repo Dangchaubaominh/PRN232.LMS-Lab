@@ -24,4 +24,7 @@ internal static class EntityMappings
 
     public static EnrollmentModel ToModel(this Enrollment entity) =>
         new(entity.EnrollmentId, entity.StudentId, entity.CourseId, entity.EnrollDate, entity.Status);
+
+    public static UserModel ToModel(this User entity) =>
+        new(entity.UserId, entity.Username, entity.Role);
 }

@@ -8,10 +8,35 @@ public static class DatabaseSeeder
     private const int MaxMigrationAttempts = 10;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(5);
 
-    public static async Task SeedAsync(LmsDbContext db)
+    /// <summary>Demo accounts, created when the Users table is empty. Documented in the README.</summary>
+    private static readonly (string Username, string Password, string Role)[] DemoUsers =
+    [
+        ("admin", "123456", "Admin"),
+        ("student", "123456", "Student")
+    ];
+
+    /// <param name="hashPassword">Password hashing function from the service layer (BCrypt).</param>
+    public static async Task SeedAsync(LmsDbContext db, Func<string, string> hashPassword)
     {
         await MigrateWithRetryAsync(db);
+        // Seeded separately so a database that already has LMS data still gets its demo accounts.
+        await SeedUsersAsync(db, hashPassword);
+        await SeedCatalogAsync(db);
+    }
 
+    private static async Task SeedUsersAsync(LmsDbContext db, Func<string, string> hashPassword)
+    {
+        if (await db.Users.AnyAsync())
+        {
+            return;
+        }
+
+        db.Users.AddRange(DemoUsers.Select(u => new User { Username = u.Username, PasswordHash = hashPassword(u.Password), Role = u.Role }));
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedCatalogAsync(LmsDbContext db)
+    {
         if (await db.Students.AnyAsync())
         {
             return;

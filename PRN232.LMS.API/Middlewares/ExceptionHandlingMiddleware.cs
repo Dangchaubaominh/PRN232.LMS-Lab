@@ -26,12 +26,17 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
                     context.Request.Method, context.Request.Path, context.TraceIdentifier);
             }
 
+            if (statusCode == StatusCodes.Status401Unauthorized)
+            {
+                context.Response.Headers.WWWAuthenticate = "Bearer";
+            }
             await context.WriteApiResponseAsync(statusCode, body);
         }
     }
 
     private static (int StatusCode, ApiResponse<object> Body) ToErrorResponse(Exception exception) => exception switch
     {
+        UnauthorizedException ex => (StatusCodes.Status401Unauthorized, ApiResponse<object>.Fail(ex.Message)),
         NotFoundException ex => (StatusCodes.Status404NotFound, ApiResponse<object>.Fail(ex.Message)),
         ConflictException ex => (StatusCodes.Status409Conflict, ApiResponse<object>.Fail(ex.Message)),
         BusinessRuleException ex => (StatusCodes.Status400BadRequest, ApiResponse<object>.Fail(ex.Message)),

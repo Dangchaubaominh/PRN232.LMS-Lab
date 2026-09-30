@@ -1,10 +1,12 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.Middlewares;
 using PRN232.LMS.API.RequestModels;
 using PRN232.LMS.API.ResponseModels;
 using PRN232.LMS.API.Shaping;
+using PRN232.LMS.Services.Security;
 using PRN232.LMS.Services.Services;
 
 namespace PRN232.LMS.API.Controllers.V2;
@@ -14,6 +16,7 @@ namespace PRN232.LMS.API.Controllers.V2;
 /// <see cref="StudentResponseV2"/> (date-only dateOfBirth, enrollmentCount).
 /// </summary>
 [ApiController]
+[Authorize]
 [ApiVersion("2.0")]
 [Route("api/v{version:apiVersion}/students")]
 public class StudentsController(IStudentService studentService, ILogger<StudentsController> logger) : ControllerBase
@@ -55,6 +58,7 @@ public class StudentsController(IStudentService studentService, ILogger<Students
         return Ok(ApiResponse<object>.Ok(new { id }, "Student updated successfully."));
     }
 
+    [Authorize(Roles = Roles.Admin)]
     [HttpDelete("{id:int}")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         [FromRoute] int id,
