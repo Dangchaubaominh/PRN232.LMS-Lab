@@ -6,6 +6,7 @@
   "apiBasePath": "/api",
   "healthPath": "/health",
   "swaggerJsonPath": "/swagger/v1/swagger.json",
+  "swaggerJsonPaths": { "v1": "/swagger/v1/swagger.json", "v2": "/swagger/v2/swagger.json" },
   "database": "sqlserver",
   "resources": {
     "semesters": "/api/semesters",
@@ -13,6 +14,31 @@
     "subjects": "/api/subjects",
     "students": "/api/students",
     "enrollments": "/api/enrollments"
+  },
+  "versionedResources": {
+    "v1": {
+      "semesters": "/api/v1/semesters",
+      "courses": "/api/v1/courses",
+      "courseStudents": "/api/v1/courses/{courseId}/students",
+      "subjects": "/api/v1/subjects",
+      "students": "/api/v1/students",
+      "enrollments": "/api/v1/enrollments"
+    },
+    "v2": {
+      "students": "/api/v2/students"
+    }
+  },
+  "auth": {
+    "loginPath": "/api/auth/login",
+    "refreshTokenPath": "/api/auth/refresh-token",
+    "logoutPath": "/api/auth/logout",
+    "mePath": "/api/auth/me",
+    "scheme": "Bearer",
+    "accounts": [
+      { "username": "admin", "password": "123456", "role": "Admin" },
+      { "username": "student", "password": "123456", "role": "Student" }
+    ],
+    "adminOnly": "DELETE on every resource"
   },
   "implemented": {
     "search": true,
@@ -22,8 +48,26 @@
     "expansion": true,
     "create": true,
     "update": true,
-    "delete": true
+    "delete": true,
+    "contentNegotiation": ["application/json", "application/xml"],
+    "notAcceptable406": true,
+    "modelBinding": ["route", "query", "body", "header"],
+    "dataAnnotations": true,
+    "fluentValidation": true,
+    "customValidation": "FptuStudentCode",
+    "attributeRouting": true,
+    "routeConstraints": true,
+    "nestedResources": true,
+    "namedRoutes": true,
+    "apiVersioning": "url-segment",
+    "globalExceptionMiddleware": true,
+    "requestLoggingMiddleware": true,
+    "jwtAuthentication": true,
+    "roleAuthorization": true,
+    "refreshToken": true,
+    "passwordHashing": "BCrypt",
+    "swaggerJwt": true
   },
   "knownIds": { "students": 1, "courses": 1, "enrollments": 1, "subjects": 1, "semesters": 1 },
-  "notes": "Collections support search, sort, page, size, fields and expand. Migrations and seeding run automatically on container startup and are idempotent."
+  "notes": "Every /api endpoint except /api/auth/* requires 'Authorization: Bearer <accessToken>' from /api/auth/login. Unversioned /api/... URLs are served by v1. Migrations and seeding run automatically on container startup and are idempotent."
 }

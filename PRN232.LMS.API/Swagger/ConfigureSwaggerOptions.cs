@@ -18,6 +18,7 @@ public class ConfigureSwaggerOptions(IApiVersionDescriptionProvider provider) : 
             Description = "Call POST /api/auth/login (e.g. admin / 123456) and paste data.accessToken here, without the 'Bearer ' prefix."
         });
         options.OperationFilter<AuthorizeOperationFilter>();
+        options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{typeof(ConfigureSwaggerOptions).Assembly.GetName().Name}.xml"));
 
         foreach (var description in provider.ApiVersionDescriptions)
         {

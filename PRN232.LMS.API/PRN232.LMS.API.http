@@ -1,4 +1,5 @@
-@host = http://localhost:5075
+# docker compose: 8080; dotnet run (launchSettings.json): 5075
+@host = http://localhost:8080
 # Filled from the login response below (Visual Studio 17.12+, VS Code REST Client).
 @token = {{login.response.body.$.data.accessToken}}
 @refreshToken = {{login.response.body.$.data.refreshToken}}

@@ -38,6 +38,8 @@ The API refuses to start when the secret is missing or shorter than 32 bytes.
 
 Resources (v1): `/api/v1/semesters`, `/api/v1/subjects`, `/api/v1/courses`, `/api/v1/courses/{courseId}/students`, `/api/v1/students`, `/api/v1/enrollments`. Collections support `search`, `sort`, `page`, `size`, `fields`, and `expand`. The Lab 1 URLs without a version (`/api/students`, ...) still work and are served by v1.
 
+[DEMO.md](DEMO.md) walks through every Lab 2 requirement step by step.
+
 Swagger has one document per version: `/swagger/v1/swagger.json` and `/swagger/v2/swagger.json` (pick the version in the top-right selector).
 
 ## Architecture
