@@ -12,4 +12,6 @@ WORKDIR /app
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 COPY --from=build /app/publish .
+# Run as the image's unprivileged "app" user instead of root; port 8080 needs no privileges.
+USER $APP_UID
 ENTRYPOINT ["dotnet", "PRN232.LMS.API.dll"]

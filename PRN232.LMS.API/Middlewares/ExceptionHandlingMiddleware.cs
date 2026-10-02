@@ -1,5 +1,6 @@
 using PRN232.LMS.API.Extensions;
 using PRN232.LMS.API.ResponseModels;
+using PRN232.LMS.Repositories.Exceptions;
 using PRN232.LMS.Services.Exceptions;
 
 namespace PRN232.LMS.API.Middlewares;
@@ -39,6 +40,7 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         UnauthorizedException ex => (StatusCodes.Status401Unauthorized, ApiResponse<object>.Fail(ex.Message)),
         NotFoundException ex => (StatusCodes.Status404NotFound, ApiResponse<object>.Fail(ex.Message)),
         ConflictException ex => (StatusCodes.Status409Conflict, ApiResponse<object>.Fail(ex.Message)),
+        DataConflictException ex => (StatusCodes.Status409Conflict, ApiResponse<object>.Fail(ex.Message)),
         BusinessRuleException ex => (StatusCodes.Status400BadRequest, ApiResponse<object>.Fail(ex.Message)),
         InvalidQueryException ex => (StatusCodes.Status400BadRequest, ApiResponse<object>.Fail("Invalid query parameter.", new[] { ex.Message })),
         // Never echo the message of an unexpected exception: it can reveal SQL, table or server details.

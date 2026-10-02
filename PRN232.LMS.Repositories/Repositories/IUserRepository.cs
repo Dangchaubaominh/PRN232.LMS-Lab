@@ -7,11 +7,17 @@ public interface IUserRepository
 {
     Task<User?> GetByUsernameAsync(string username);
 
-    /// <summary>Tracked (so it can be revoked), with its user loaded.</summary>
+    /// <summary>Read-only, with its user loaded.</summary>
     Task<RefreshToken?> GetRefreshTokenAsync(string tokenHash);
 
-    /// <summary>Tracked tokens of the user that are neither revoked nor expired at <paramref name="now"/>.</summary>
-    Task<List<RefreshToken>> GetActiveRefreshTokensAsync(int userId, DateTime now);
+    /// <summary>
+    /// Revokes the token only if it is still active, in a single UPDATE. When several requests try
+    /// to revoke the same token at once, exactly one of them gets true.
+    /// </summary>
+    Task<bool> TryRevokeRefreshTokenAsync(int refreshTokenId, DateTime now, string? replacedByTokenHash = null);
+
+    /// <summary>Revokes every refresh token of the user that is not revoked yet.</summary>
+    Task RevokeActiveRefreshTokensAsync(int userId, DateTime now);
 
     Task AddRefreshTokenAsync(RefreshToken token);
     Task SaveChangesAsync();

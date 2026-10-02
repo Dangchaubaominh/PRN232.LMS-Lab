@@ -22,6 +22,7 @@ namespace PRN232.LMS.API.Controllers.V2;
 public class StudentsController(IStudentService studentService, ILogger<StudentsController> logger) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(CollectionResponse<StudentResponseV2>), StatusCodes.Status200OK)]
     public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromQuery] StudentQueryRequest query)
     {
         var fields = FieldSelection<StudentResponseV2>.Parse(query.Fields);

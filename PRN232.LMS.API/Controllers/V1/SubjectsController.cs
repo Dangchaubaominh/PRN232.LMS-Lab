@@ -17,6 +17,7 @@ namespace PRN232.LMS.API.Controllers.V1;
 public class SubjectsController(ISubjectService subjectService) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(CollectionResponse<SubjectResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromQuery] ListQueryRequest query)
     {
         var fields = FieldSelection<SubjectResponse>.Parse(query.Fields);

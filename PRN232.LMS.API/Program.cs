@@ -70,6 +70,7 @@ builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 
 builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddLoginRateLimiting(builder.Configuration);
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -96,6 +97,8 @@ app.UseStatusCodePages(context => context.HttpContext.Response.StatusCode switch
 app.UseRewriter(new RewriteOptions().AddRewrite(@"(?i)^api/(?!v\d+(?:/|$)|auth(?:/|$))(.*)$", "api/v1/$1", skipRemainingRules: true));
 // Explicit so that routing sees the rewritten path (the implicit UseRouting runs before all middleware).
 app.UseRouting();
+// After routing: the limit applies only to endpoints with [EnableRateLimiting] (login).
+app.UseRateLimiter();
 
 app.UseSwagger();
 app.UseSwaggerUI(options =>

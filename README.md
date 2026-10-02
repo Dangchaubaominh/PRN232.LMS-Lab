@@ -32,7 +32,7 @@ The JWT signing key comes from the `Jwt__Secret` environment variable (at least 
 JWT_SECRET=<a long random string> docker compose up --build -d
 ```
 
-The API refuses to start when the secret is missing or shorter than 32 bytes.
+The API refuses to start when the secret is missing or shorter than 32 bytes. The API container runs as the image's unprivileged `app` user, not root.
 
 > Upgrading from a database created by an older build (before migrations were introduced): run `docker compose down` once before `up`, so the database container is recreated.
 
@@ -56,7 +56,7 @@ Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Bu
 
 | Endpoint | Access | Purpose |
 |---|---|---|
-| `POST /api/auth/login` | anonymous | `{ username, password }` -> `{ accessToken, refreshToken, expiresIn }` |
+| `POST /api/auth/login` | anonymous, rate-limited | `{ username, password }` -> `{ accessToken, refreshToken, expiresIn }` |
 | `POST /api/auth/refresh-token` | anonymous | `{ refreshToken }` -> a new token pair; the old refresh token stops working |
 | `POST /api/auth/logout` | anonymous | `{ refreshToken }` -> revokes it |
 | `GET /api/auth/me` | any user | the user in the access token |
@@ -64,7 +64,8 @@ Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Bu
 | `DELETE` on all resources | Admin only (`[Authorize(Roles = "Admin")]`) | |
 
 - Access tokens: JWT signed with HS256, 60 minutes, claims `sub`, `unique_name`, `role`, `jti`. The API validates signature, issuer, audience and lifetime (30 s clock skew).
-- Refresh tokens: 64 random bytes, valid 7 days, single use. The `RefreshTokens` table stores only their SHA-256 hash. Presenting an already used refresh token revokes every active refresh token of that user (theft detection).
+- Refresh tokens: 64 random bytes, valid 7 days, single use. The `RefreshTokens` table stores only their SHA-256 hash. Presenting an already used refresh token revokes every active refresh token of that user (theft detection). A token is consumed with a single conditional `UPDATE ... WHERE RevokedAt IS NULL`, so two concurrent refreshes with the same token cannot both succeed.
+- Login is rate-limited per client IP: 10 attempts per minute by default (`RateLimiting:LoginPermitLimit`, `RateLimiting:LoginWindowSeconds`); further attempts get `429 Too many login attempts.` with a `Retry-After` header.
 - Passwords: BCrypt (work factor 11) in `Users.PasswordHash`; never stored in plain text. Login answers the same `Invalid username or password.` for an unknown user and a wrong password.
 - `401` (missing, invalid or expired token: `Access token has expired.`) and `403` (wrong role) use the standard envelope and carry `WWW-Authenticate: Bearer` on 401.
 - Tokens are issued by `AuthService` (Services) through `ITokenService`, implemented by `JwtTokenService` (API), which also owns the JWT settings in `JwtOptions`.
@@ -113,7 +114,7 @@ XML is produced by `ApiXmlOutputFormatter`, which converts the JSON representati
 Registered in this order in `Program.cs`:
 
 1. `RequestLoggingMiddleware` logs method, path, status code and execution time of every request, e.g. `GET /api/students/1 responded 200 in 3.1 ms [demo-123]`. The id comes from the client's `X-Request-Id` header (1-64 characters of `A-Z a-z 0-9 . _ : -`) or is generated, and is returned in the `X-Request-Id` response header.
-2. `ExceptionHandlingMiddleware` maps service exceptions to the `{ success, message, data, errors }` envelope: `UnauthorizedException` 401, `NotFoundException` 404, `BusinessRuleException` 400, `InvalidQueryException` 400, `ConflictException` 409 (e.g. deleting a semester that still has courses). Any other exception is logged with its request id and returned as a generic `500 Internal server error`, never with exception details.
+2. `ExceptionHandlingMiddleware` maps service exceptions to the `{ success, message, data, errors }` envelope: `UnauthorizedException` 401, `NotFoundException` 404, `BusinessRuleException` 400, `InvalidQueryException` 400, `ConflictException` 409 (e.g. deleting a semester that still has courses). Services check uniqueness and references before writing; if a concurrent request slips in between, `LmsDbContext.SaveChangesAsync` turns the SQL Server unique-index or foreign-key error into `DataConflictException`, also returned as 409 instead of a 500. Any other exception is logged with its request id and returned as a generic `500 Internal server error`, never with exception details.
 
 Adding a migration after changing an entity:
 
@@ -125,3 +126,4 @@ dotnet ef migrations add <Name> --project PRN232.LMS.Repositories --startup-proj
 
 - Access tokens cannot be revoked before they expire (60 minutes); logout revokes only the refresh token.
 - Expired and revoked refresh tokens stay in the `RefreshTokens` table; there is no cleanup job.
+- The login limit is per IP. Through Docker's port mapping every local client appears with the same gateway address, so locally the limit is shared; behind a reverse proxy, configure forwarded headers so the real client IP is used.

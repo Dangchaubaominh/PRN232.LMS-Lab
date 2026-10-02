@@ -17,6 +17,7 @@ namespace PRN232.LMS.API.Controllers.V1;
 public class SemestersController(ISemesterService semesterService) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(CollectionResponse<SemesterResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromQuery] ListQueryRequest query)
     {
         var fields = FieldSelection<SemesterResponse>.Parse(query.Fields);

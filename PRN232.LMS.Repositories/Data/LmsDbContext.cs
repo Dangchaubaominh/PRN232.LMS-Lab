@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.Repositories.Entities;
+using PRN232.LMS.Repositories.Exceptions;
 
 namespace PRN232.LMS.Repositories.Data;
 
@@ -12,6 +13,19 @@ public class LmsDbContext(DbContextOptions<LmsDbContext> options) : DbContext(op
     public DbSet<Enrollment> Enrollments => Set<Enrollment>();
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    /// <summary>Saves, reporting unique-index and foreign-key violations as <see cref="DataConflictException"/>.</summary>
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateException exception) when (DataConflictException.From(exception) is { } conflict)
+        {
+            throw conflict;
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -10,10 +10,19 @@ public class UserRepository(LmsDbContext context) : IUserRepository
         context.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Username == username);
 
     public Task<RefreshToken?> GetRefreshTokenAsync(string tokenHash) =>
-        context.RefreshTokens.Include(x => x.User).SingleOrDefaultAsync(x => x.TokenHash == tokenHash);
+        context.RefreshTokens.AsNoTracking().Include(x => x.User).SingleOrDefaultAsync(x => x.TokenHash == tokenHash);
 
-    public Task<List<RefreshToken>> GetActiveRefreshTokensAsync(int userId, DateTime now) =>
-        context.RefreshTokens.Where(x => x.UserId == userId && x.RevokedAt == null && x.ExpiresAt > now).ToListAsync();
+    public async Task<bool> TryRevokeRefreshTokenAsync(int refreshTokenId, DateTime now, string? replacedByTokenHash = null) =>
+        await context.RefreshTokens
+            .Where(x => x.RefreshTokenId == refreshTokenId && x.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.RevokedAt, now)
+                .SetProperty(x => x.ReplacedByTokenHash, replacedByTokenHash)) == 1;
+
+    public Task RevokeActiveRefreshTokensAsync(int userId, DateTime now) =>
+        context.RefreshTokens
+            .Where(x => x.UserId == userId && x.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, now));
 
     public Task AddRefreshTokenAsync(RefreshToken token) => context.RefreshTokens.AddAsync(token).AsTask();
 

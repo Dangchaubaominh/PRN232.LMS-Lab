@@ -1,7 +1,9 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.JsonWebTokens;
+using PRN232.LMS.API.Extensions;
 using PRN232.LMS.API.Mappings;
 using PRN232.LMS.API.RequestModels;
 using PRN232.LMS.API.ResponseModels;
@@ -16,9 +18,17 @@ namespace PRN232.LMS.API.Controllers;
 [Route("api/auth")]
 public class AuthController(IAuthService authService) : ControllerBase
 {
-    /// <summary>Exchanges a username and password for an access token and a refresh token.</summary>
+    /// <summary>
+    /// Exchanges a username and password for an access token and a refresh token.
+    /// Limited per client IP (default 10 attempts per minute); further attempts get 429 with Retry-After.
+    /// </summary>
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitingExtensions.LoginPolicy)]
     [HttpPost("login")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
     {
         var result = await authService.LoginAsync(request.Username, request.Password);

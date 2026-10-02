@@ -37,7 +37,9 @@ Show `Controllers/V1/StudentsController.cs` (no logic) next to `Services/Service
    docker compose exec db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Your_password123 -C -d LMS -Q "SELECT Username, Role, PasswordHash FROM Users; SELECT TOP 3 TokenHash, ExpiresAt, RevokedAt FROM RefreshTokens"
    ```
 
-Code: `Controllers/AuthController.cs`, `Services/Services/AuthService.cs`, `API/Security/JwtTokenService.cs`, `API/Extensions/AuthenticationExtensions.cs`, `Services/Security/BCryptPasswordHasher.cs`.
+9. Rate limiting (do this last: logins stay blocked for up to a minute): send a wrong password 11 times in a row -> the 11th answer is `429 Too many login attempts.` with `Retry-After`, even with the right password.
+
+Code: `Controllers/AuthController.cs`, `Services/Services/AuthService.cs`, `API/Security/JwtTokenService.cs`, `API/Extensions/AuthenticationExtensions.cs`, `API/Extensions/RateLimitingExtensions.cs`, `Services/Security/BCryptPasswordHasher.cs`.
 
 ## 3. Content negotiation (section 4)
 

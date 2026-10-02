@@ -21,6 +21,7 @@ public class CourseStudentsController(IStudentService studentService) : Controll
     /// GET /students; "status" keeps only students whose enrollment in this course has that status.
     /// </summary>
     [HttpGet(Name = "GetCourseStudents")]
+    [ProducesResponseType(typeof(CollectionResponse<StudentResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<CollectionResponse<object>>> GetAll([FromRoute] int courseId, [FromQuery] ListQueryRequest query)
     {
         var fields = FieldSelection<StudentResponse>.Parse(query.Fields);

@@ -28,7 +28,7 @@ public class AuthService(IUserRepository userRepository, IPasswordHasher passwor
             throw new UnauthorizedException(InvalidCredentials);
         }
 
-        return await IssueTokensAsync(user, DateTime.UtcNow);
+        return await StoreAsync(CreateTokens(user, DateTime.UtcNow));
     }
 
     public async Task<AuthResult> RefreshAsync(string refreshToken)
@@ -37,57 +37,55 @@ public class AuthService(IUserRepository userRepository, IPasswordHasher passwor
         var stored = await userRepository.GetRefreshTokenAsync(HashToken(refreshToken))
             ?? throw new UnauthorizedException(InvalidRefreshToken);
 
-        if (stored.RevokedAt is not null)
-        {
-            // An already used token came back: it may have been stolen, so end every session of the user.
-            foreach (var active in await userRepository.GetActiveRefreshTokensAsync(stored.UserId, now))
-            {
-                active.RevokedAt = now;
-            }
-            await userRepository.SaveChangesAsync();
-            throw new UnauthorizedException(InvalidRefreshToken);
-        }
-
-        if (stored.ExpiresAt <= now)
+        if (stored.RevokedAt is null && stored.ExpiresAt <= now)
         {
             throw new UnauthorizedException("Refresh token has expired.");
         }
 
-        return await IssueTokensAsync(stored.User, now, replacing: stored);
+        var tokens = CreateTokens(stored.User, now);
+        // TryRevoke is a single conditional UPDATE, so of several requests presenting the same token
+        // only one succeeds. Failing here means the token was already used, now or earlier: it may have
+        // been stolen, so end every session of the user.
+        if (stored.RevokedAt is not null
+            || !await userRepository.TryRevokeRefreshTokenAsync(stored.RefreshTokenId, now, tokens.Stored.TokenHash))
+        {
+            await userRepository.RevokeActiveRefreshTokensAsync(stored.UserId, now);
+            throw new UnauthorizedException(InvalidRefreshToken);
+        }
+
+        return await StoreAsync(tokens);
     }
 
     public async Task LogoutAsync(string refreshToken)
     {
         var stored = await userRepository.GetRefreshTokenAsync(HashToken(refreshToken));
-        if (stored is { RevokedAt: null })
+        if (stored is not null)
         {
-            stored.RevokedAt = DateTime.UtcNow;
-            await userRepository.SaveChangesAsync();
+            await userRepository.TryRevokeRefreshTokenAsync(stored.RefreshTokenId, DateTime.UtcNow);
         }
     }
 
-    /// <summary>Creates an access token and a stored refresh token; revokes <paramref name="replacing"/> (rotation).</summary>
-    private async Task<AuthResult> IssueTokensAsync(User user, DateTime now, RefreshToken? replacing = null)
+    /// <summary>A new access token and refresh token; the refresh token is not saved yet.</summary>
+    private (AuthResult Result, RefreshToken Stored) CreateTokens(User user, DateTime now)
     {
         var accessToken = tokenService.CreateAccessToken(user.ToModel());
         var refreshToken = tokenService.CreateRefreshToken();
-        var refreshTokenHash = HashToken(refreshToken.Token);
-
-        await userRepository.AddRefreshTokenAsync(new RefreshToken
+        var stored = new RefreshToken
         {
             UserId = user.UserId,
-            TokenHash = refreshTokenHash,
+            TokenHash = HashToken(refreshToken.Token),
             CreatedAt = now,
             ExpiresAt = refreshToken.ExpiresAt
-        });
-        if (replacing is not null)
-        {
-            replacing.RevokedAt = now;
-            replacing.ReplacedByTokenHash = refreshTokenHash;
-        }
-        await userRepository.SaveChangesAsync();
+        };
 
-        return new AuthResult(accessToken.Token, refreshToken.Token, accessToken.ExpiresInSeconds);
+        return (new AuthResult(accessToken.Token, refreshToken.Token, accessToken.ExpiresInSeconds), stored);
+    }
+
+    private async Task<AuthResult> StoreAsync((AuthResult Result, RefreshToken Stored) tokens)
+    {
+        await userRepository.AddRefreshTokenAsync(tokens.Stored);
+        await userRepository.SaveChangesAsync();
+        return tokens.Result;
     }
 
     private static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
