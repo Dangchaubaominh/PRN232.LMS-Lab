@@ -1,6 +1,5 @@
-using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.Repositories.Entities;
+using PRN232.LMS.Repositories.Queries;
 using PRN232.LMS.Repositories.Repositories;
 using PRN232.LMS.Services.BusinessModels;
 using PRN232.LMS.Services.Exceptions;
@@ -9,58 +8,35 @@ using PRN232.LMS.Services.Queries;
 
 namespace PRN232.LMS.Services.Services;
 
-public class EnrollmentService(ILmsRepository repository) : IEnrollmentService
+public class EnrollmentService(IEnrollmentRepository enrollments, IStudentRepository students, ICourseRepository courses) : IEnrollmentService
 {
     private const string NotFoundMessage = "Enrollment not found.";
 
-    private static readonly Dictionary<string, Expression<Func<Enrollment, object>>> SortKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["enrollmentId"] = x => x.EnrollmentId,
-        ["studentId"] = x => x.StudentId,
-        ["courseId"] = x => x.CourseId,
-        ["enrollDate"] = x => x.EnrollDate,
-        ["status"] = x => x.Status
-    };
-
     private static readonly string[] Expandable = ["student", "course"];
 
-    public Task<PagedResult<EnrollmentModel>> GetAllAsync(ListQuery query)
+    public async Task<PagedResult<EnrollmentModel>> GetAllAsync(ListQuery query)
     {
-        QueryHelper.EnsureSupported(query, SortKeys, Expandable);
-        var expand = QueryHelper.SplitList(query.Expand);
-        var includeStudent = expand.Contains("student");
-        var includeCourse = expand.Contains("course");
+        var page = QueryOptions.ToPageRequest(query, enrollments.SortFields, Expandable);
+        var expand = QueryOptions.SplitList(query.Expand);
+        var enrollmentQuery = new EnrollmentQuery(
+            query.Search,
+            query.Status,
+            query.StudentId,
+            query.CourseId,
+            IncludeStudent: expand.Contains("student"),
+            IncludeCourse: expand.Contains("course"));
 
-        var enrollments = repository.Enrollments.Where(x =>
-            (query.Search == null || x.Status.Contains(query.Search))
-            && (query.Status == null || x.Status == query.Status)
-            && (query.StudentId == null || x.StudentId == query.StudentId)
-            && (query.CourseId == null || x.CourseId == query.CourseId));
-        enrollments = QueryHelper.ApplySort(enrollments, query.Sort, SortKeys, x => x.EnrollmentId);
-        if (includeStudent)
+        var result = await enrollments.GetPageAsync(enrollmentQuery, page);
+        return result.ToPagedResult(page, x => x.ToModel() with
         {
-            enrollments = enrollments.Include(x => x.Student);
-        }
-        if (includeCourse)
-        {
-            enrollments = enrollments.Include(x => x.Course);
-        }
-
-        return QueryHelper.ToPagedResultAsync(enrollments, query, x => x.ToModel() with
-        {
-            Student = includeStudent ? x.Student.ToModel() : null,
-            Course = includeCourse ? x.Course.ToModel() : null
+            Student = enrollmentQuery.IncludeStudent ? x.Student.ToModel() : null,
+            Course = enrollmentQuery.IncludeCourse ? x.Course.ToModel() : null
         });
     }
 
     public async Task<EnrollmentModel> GetByIdAsync(int id)
     {
-        var enrollment = await repository.Enrollments
-            .Include(x => x.Student)
-            .Include(x => x.Course).ThenInclude(c => c.Semester)
-            .Include(x => x.Course).ThenInclude(c => c.Subject)
-            .SingleOrDefaultAsync(x => x.EnrollmentId == id)
-            ?? throw new NotFoundException(NotFoundMessage);
+        var enrollment = await enrollments.GetWithDetailsAsync(id) ?? throw new NotFoundException(NotFoundMessage);
 
         return enrollment.ToModel() with
         {
@@ -85,15 +61,15 @@ public class EnrollmentService(ILmsRepository repository) : IEnrollmentService
             EnrollDate = enrollment.EnrollDate,
             Status = enrollment.Status
         };
-        await repository.AddAsync(entity);
-        await repository.SaveChangesAsync();
+        await enrollments.AddAsync(entity);
+        await enrollments.SaveChangesAsync();
 
         return entity.ToModel();
     }
 
     public async Task UpdateAsync(int id, EnrollmentModel enrollment)
     {
-        var entity = await repository.FindAsync<Enrollment>(id) ?? throw new NotFoundException(NotFoundMessage);
+        var entity = await enrollments.FindAsync(id) ?? throw new NotFoundException(NotFoundMessage);
         await EnsureReferencesExistAsync(enrollment);
         await EnsureNotEnrolledAsync(enrollment, excludeEnrollmentId: id);
 
@@ -101,22 +77,20 @@ public class EnrollmentService(ILmsRepository repository) : IEnrollmentService
         entity.CourseId = enrollment.CourseId;
         entity.EnrollDate = enrollment.EnrollDate;
         entity.Status = enrollment.Status;
-        await repository.SaveChangesAsync();
+        await enrollments.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
     {
-        var entity = await repository.FindAsync<Enrollment>(id) ?? throw new NotFoundException(NotFoundMessage);
+        var entity = await enrollments.FindAsync(id) ?? throw new NotFoundException(NotFoundMessage);
 
-        repository.Remove(entity);
-        await repository.SaveChangesAsync();
+        enrollments.Remove(entity);
+        await enrollments.SaveChangesAsync();
     }
 
     private async Task EnsureReferencesExistAsync(EnrollmentModel enrollment)
     {
-        var studentExists = await repository.Students.AnyAsync(x => x.StudentId == enrollment.StudentId);
-        var courseExists = await repository.Courses.AnyAsync(x => x.CourseId == enrollment.CourseId);
-        if (!studentExists || !courseExists)
+        if (!await students.ExistsAsync(enrollment.StudentId) || !await courses.ExistsAsync(enrollment.CourseId))
         {
             throw new BusinessRuleException("StudentId or CourseId does not exist.");
         }
@@ -124,11 +98,7 @@ public class EnrollmentService(ILmsRepository repository) : IEnrollmentService
 
     private async Task EnsureNotEnrolledAsync(EnrollmentModel enrollment, int? excludeEnrollmentId)
     {
-        var alreadyEnrolled = await repository.Enrollments.AnyAsync(x =>
-            x.StudentId == enrollment.StudentId
-            && x.CourseId == enrollment.CourseId
-            && (excludeEnrollmentId == null || x.EnrollmentId != excludeEnrollmentId));
-        if (alreadyEnrolled)
+        if (await enrollments.ExistsForStudentAndCourseAsync(enrollment.StudentId, enrollment.CourseId, excludeEnrollmentId))
         {
             throw new BusinessRuleException("Student is already enrolled in this course.");
         }

@@ -1,6 +1,5 @@
-using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.Repositories.Entities;
+using PRN232.LMS.Repositories.Queries;
 using PRN232.LMS.Repositories.Repositories;
 using PRN232.LMS.Services.BusinessModels;
 using PRN232.LMS.Services.Exceptions;
@@ -9,34 +8,19 @@ using PRN232.LMS.Services.Queries;
 
 namespace PRN232.LMS.Services.Services;
 
-public class SemesterService(ILmsRepository repository) : ISemesterService
+public class SemesterService(ISemesterRepository semesters) : ISemesterService
 {
     private const string NotFoundMessage = "Semester not found.";
 
-    private static readonly Dictionary<string, Expression<Func<Semester, object>>> SortKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["semesterId"] = x => x.SemesterId,
-        ["semesterName"] = x => x.SemesterName,
-        ["startDate"] = x => x.StartDate,
-        ["endDate"] = x => x.EndDate
-    };
-
     private static readonly string[] Expandable = ["courses"];
 
-    public Task<PagedResult<SemesterModel>> GetAllAsync(ListQuery query)
+    public async Task<PagedResult<SemesterModel>> GetAllAsync(ListQuery query)
     {
-        QueryHelper.EnsureSupported(query, SortKeys, Expandable);
-        var includeCourses = QueryHelper.SplitList(query.Expand).Contains("courses");
+        var page = QueryOptions.ToPageRequest(query, semesters.SortFields, Expandable);
+        var includeCourses = QueryOptions.SplitList(query.Expand).Contains("courses");
 
-        var semesters = repository.Semesters
-            .Where(x => query.Search == null || x.SemesterName.Contains(query.Search));
-        semesters = QueryHelper.ApplySort(semesters, query.Sort, SortKeys, x => x.SemesterId);
-        if (includeCourses)
-        {
-            semesters = semesters.Include(x => x.Courses);
-        }
-
-        return QueryHelper.ToPagedResultAsync(semesters, query, x => x.ToModel() with
+        var result = await semesters.GetPageAsync(new SemesterQuery(query.Search, includeCourses), page);
+        return result.ToPagedResult(page, x => x.ToModel() with
         {
             Courses = includeCourses ? x.Courses.Select(c => c.ToModel()).ToList() : null
         });
@@ -44,10 +28,7 @@ public class SemesterService(ILmsRepository repository) : ISemesterService
 
     public async Task<SemesterModel> GetByIdAsync(int id)
     {
-        var semester = await repository.Semesters
-            .Include(x => x.Courses)
-            .SingleOrDefaultAsync(x => x.SemesterId == id)
-            ?? throw new NotFoundException(NotFoundMessage);
+        var semester = await semesters.GetWithCoursesAsync(id) ?? throw new NotFoundException(NotFoundMessage);
 
         return semester.ToModel() with { Courses = semester.Courses.Select(c => c.ToModel()).ToList() };
     }
@@ -62,33 +43,33 @@ public class SemesterService(ILmsRepository repository) : ISemesterService
             StartDate = semester.StartDate,
             EndDate = semester.EndDate
         };
-        await repository.AddAsync(entity);
-        await repository.SaveChangesAsync();
+        await semesters.AddAsync(entity);
+        await semesters.SaveChangesAsync();
 
         return entity.ToModel();
     }
 
     public async Task UpdateAsync(int id, SemesterModel semester)
     {
-        var entity = await repository.FindAsync<Semester>(id) ?? throw new NotFoundException(NotFoundMessage);
+        var entity = await semesters.FindAsync(id) ?? throw new NotFoundException(NotFoundMessage);
         EnsureValidDateRange(semester);
 
         entity.SemesterName = semester.SemesterName.Trim();
         entity.StartDate = semester.StartDate;
         entity.EndDate = semester.EndDate;
-        await repository.SaveChangesAsync();
+        await semesters.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
     {
-        var entity = await repository.FindAsync<Semester>(id) ?? throw new NotFoundException(NotFoundMessage);
-        if (await repository.Courses.AnyAsync(x => x.SemesterId == id))
+        var entity = await semesters.FindAsync(id) ?? throw new NotFoundException(NotFoundMessage);
+        if (await semesters.HasCoursesAsync(id))
         {
             throw new ConflictException("Semester cannot be deleted while it still has courses.");
         }
 
-        repository.Remove(entity);
-        await repository.SaveChangesAsync();
+        semesters.Remove(entity);
+        await semesters.SaveChangesAsync();
     }
 
     private static void EnsureValidDateRange(SemesterModel semester)

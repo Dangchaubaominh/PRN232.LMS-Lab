@@ -1,6 +1,5 @@
-using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore;
 using PRN232.LMS.Repositories.Entities;
+using PRN232.LMS.Repositories.Queries;
 using PRN232.LMS.Repositories.Repositories;
 using PRN232.LMS.Services.BusinessModels;
 using PRN232.LMS.Services.Exceptions;
@@ -9,48 +8,35 @@ using PRN232.LMS.Services.Queries;
 
 namespace PRN232.LMS.Services.Services;
 
-public class StudentService(ILmsRepository repository) : IStudentService
+public class StudentService(IStudentRepository students, ICourseRepository courses, IEnrollmentRepository enrollments) : IStudentService
 {
     private const string NotFoundMessage = "Student not found.";
-
-    private static readonly Dictionary<string, Expression<Func<Student, object>>> SortKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["studentId"] = x => x.StudentId,
-        ["studentCode"] = x => x.StudentCode,
-        ["fullName"] = x => x.FullName,
-        ["email"] = x => x.Email,
-        ["dateOfBirth"] = x => x.DateOfBirth
-    };
 
     private static readonly string[] Expandable = ["enrollments"];
 
     public async Task<PagedResult<StudentModel>> GetAllAsync(ListQuery query, bool includeEnrollmentCount = false)
     {
-        QueryHelper.EnsureSupported(query, SortKeys, Expandable);
+        var page = QueryOptions.ToPageRequest(query, students.SortFields, Expandable);
 
-        var page = await GetPageAsync(repository.Students, query);
-        return includeEnrollmentCount ? await WithEnrollmentCountsAsync(page) : page;
+        var result = await GetPageAsync(new StudentQuery(query.Search, IncludesEnrollments(query)), page);
+        return includeEnrollmentCount ? await WithEnrollmentCountsAsync(result) : result;
     }
 
     public async Task<PagedResult<StudentModel>> GetByCourseAsync(int courseId, ListQuery query)
     {
-        QueryHelper.EnsureSupported(query, SortKeys, Expandable);
-        if (!await repository.Courses.AnyAsync(x => x.CourseId == courseId))
+        var page = QueryOptions.ToPageRequest(query, students.SortFields, Expandable);
+        if (!await courses.ExistsAsync(courseId))
         {
             throw new NotFoundException("Course not found.");
         }
 
-        var enrolled = repository.Students.Where(x => x.Enrollments.Any(e =>
-            e.CourseId == courseId && (query.Status == null || e.Status == query.Status)));
-        return await GetPageAsync(enrolled, query);
+        var studentQuery = new StudentQuery(query.Search, IncludesEnrollments(query), EnrolledInCourseId: courseId, EnrollmentStatus: query.Status);
+        return await GetPageAsync(studentQuery, page);
     }
 
     public async Task<StudentModel> GetByIdAsync(int id)
     {
-        var student = await repository.Students
-            .Include(x => x.Enrollments).ThenInclude(e => e.Course)
-            .SingleOrDefaultAsync(x => x.StudentId == id)
-            ?? throw new NotFoundException(NotFoundMessage);
+        var student = await students.GetWithEnrollmentsAsync(id) ?? throw new NotFoundException(NotFoundMessage);
 
         return student.ToModel() with
         {
@@ -74,15 +60,15 @@ public class StudentService(ILmsRepository repository) : IStudentService
             Phone = NormalizePhone(student.Phone),
             DateOfBirth = student.DateOfBirth
         };
-        await repository.AddAsync(entity);
-        await repository.SaveChangesAsync();
+        await students.AddAsync(entity);
+        await students.SaveChangesAsync();
 
         return entity.ToModel();
     }
 
     public async Task UpdateAsync(int id, StudentModel student)
     {
-        var entity = await repository.FindAsync<Student>(id) ?? throw new NotFoundException(NotFoundMessage);
+        var entity = await students.FindAsync(id) ?? throw new NotFoundException(NotFoundMessage);
         EnsureBornInThePast(student);
         var code = NormalizeCode(student.StudentCode);
         var email = NormalizeEmail(student.Email);
@@ -93,49 +79,31 @@ public class StudentService(ILmsRepository repository) : IStudentService
         entity.Email = email;
         entity.Phone = NormalizePhone(student.Phone);
         entity.DateOfBirth = student.DateOfBirth;
-        await repository.SaveChangesAsync();
+        await students.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
     {
-        var entity = await repository.FindAsync<Student>(id) ?? throw new NotFoundException(NotFoundMessage);
+        var entity = await students.FindAsync(id) ?? throw new NotFoundException(NotFoundMessage);
 
-        repository.Remove(entity);
-        await repository.SaveChangesAsync();
+        students.Remove(entity);
+        await students.SaveChangesAsync();
     }
 
-    /// <summary>Search, sort, page and expand over <paramref name="students"/>.</summary>
-    private static Task<PagedResult<StudentModel>> GetPageAsync(IQueryable<Student> students, ListQuery query)
+    private static bool IncludesEnrollments(ListQuery query) => QueryOptions.SplitList(query.Expand).Contains("enrollments");
+
+    private async Task<PagedResult<StudentModel>> GetPageAsync(StudentQuery query, PageRequest page)
     {
-        var includeEnrollments = QueryHelper.SplitList(query.Expand).Contains("enrollments");
-
-        students = students.Where(x =>
-            query.Search == null
-            || x.StudentCode.Contains(query.Search)
-            || x.FullName.Contains(query.Search)
-            || x.Email.Contains(query.Search));
-        students = QueryHelper.ApplySort(students, query.Sort, SortKeys, x => x.StudentId);
-        if (includeEnrollments)
+        var result = await students.GetPageAsync(query, page);
+        return result.ToPagedResult(page, x => x.ToModel() with
         {
-            students = students.Include(x => x.Enrollments);
-        }
-
-        return QueryHelper.ToPagedResultAsync(students, query, x => x.ToModel() with
-        {
-            Enrollments = includeEnrollments ? x.Enrollments.Select(e => e.ToModel()).ToList() : null
+            Enrollments = query.IncludeEnrollments ? x.Enrollments.Select(e => e.ToModel()).ToList() : null
         });
     }
 
-    /// <summary>Counts the enrollments of the students on the page with one grouped query.</summary>
     private async Task<PagedResult<StudentModel>> WithEnrollmentCountsAsync(PagedResult<StudentModel> page)
     {
-        var studentIds = page.Items.Select(x => x.StudentId).ToList();
-        var counts = await repository.Enrollments
-            .Where(e => studentIds.Contains(e.StudentId))
-            .GroupBy(e => e.StudentId)
-            .Select(g => new { StudentId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.StudentId, x => x.Count);
-
+        var counts = await enrollments.CountByStudentAsync(page.Items.Select(x => x.StudentId).ToList());
         return page with
         {
             Items = page.Items.Select(x => x with { EnrollmentCount = counts.GetValueOrDefault(x.StudentId) }).ToList()
@@ -158,12 +126,11 @@ public class StudentService(ILmsRepository repository) : IStudentService
 
     private async Task EnsureUniqueAsync(string code, string email, int? excludeStudentId)
     {
-        var others = repository.Students.Where(x => excludeStudentId == null || x.StudentId != excludeStudentId);
-        if (await others.AnyAsync(x => x.StudentCode == code))
+        if (await students.CodeExistsAsync(code, excludeStudentId))
         {
             throw new BusinessRuleException("StudentCode already exists.");
         }
-        if (await others.AnyAsync(x => x.Email == email))
+        if (await students.EmailExistsAsync(email, excludeStudentId))
         {
             throw new BusinessRuleException("Email already exists.");
         }

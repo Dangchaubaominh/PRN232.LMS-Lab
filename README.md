@@ -47,10 +47,12 @@ Swagger has one document per version: `/swagger/v1/swagger.json` and `/swagger/v
 | Project | Responsibility | Models |
 |---|---|---|
 | `PRN232.LMS.API` | Controllers, request validation, response shaping (`fields`), error handling middleware | Request models, Response models |
-| `PRN232.LMS.Services` | Business rules, query options (search, sort, paging, expand) | Business models |
-| `PRN232.LMS.Repositories` | EF Core `DbContext`, migrations, seeding, data access | Entities |
+| `PRN232.LMS.Services` | Business rules: validating query options, normalizing input, uniqueness and reference checks, delete conflicts, token issuing | Business models |
+| `PRN232.LMS.Repositories` | All data access: EF Core `DbContext`, one repository per entity (filter, sort, page, include), migrations, seeding | Entities |
 
 Data flows `Request -> Business model -> Entity` on the way in and `Entity -> Business model -> Response` on the way out, so entities never reach the client.
+
+Services talk to `ISemesterRepository`, `ISubjectRepository`, `ICourseRepository`, `IStudentRepository`, `IEnrollmentRepository` and `IUserRepository`; queries are described with records such as `StudentQuery` and `PageRequest` instead of `IQueryable`. EF Core is a private dependency of the Repositories project (`PrivateAssets="all"`), so the Services project cannot compile code that uses EF Core directly.
 
 ### Authentication and authorization
 

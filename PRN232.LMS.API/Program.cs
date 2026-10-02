@@ -62,7 +62,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
 builder.Services.AddDbContext<LmsDbContext>(options => options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
 
-builder.Services.AddScoped<ILmsRepository, LmsRepository>();
+builder.Services.AddScoped<ISemesterRepository, SemesterRepository>();
+builder.Services.AddScoped<ISubjectRepository, SubjectRepository>();
+builder.Services.AddScoped<ICourseRepository, CourseRepository>();
+builder.Services.AddScoped<IStudentRepository, StudentRepository>();
+builder.Services.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
 builder.Services.AddScoped<ISemesterService, SemesterService>();
 builder.Services.AddScoped<ISubjectService, SubjectService>();
 builder.Services.AddScoped<ICourseService, CourseService>();
